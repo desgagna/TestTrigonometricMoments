@@ -790,68 +790,101 @@ dens <- function(x) duniform(x, a, b)
 cdf  <- function(x) puniform(x, a, b)
 qf   <- function(p) quniform(p, a, b)
 gen  <- function(n) runiform(n, a, b)
-mle  <- function(x) ML.uniform(x) 
-left.bound <- a; right.bound <- b; theta <- c(a, b); quant <- .678
+left.bound <- a; right.bound <- b; theta <- c(a, b) 
+quant <- .678
+
+validation1()
+
+est.ML  <- function(x) ML.uniform(x) 
 test <- function(x)  uniform.test.ML(x)
+validation2(est.ML, test)
+res <- validation3(test, nb.sim = 1000, n = 1000)
+plot.ellipse.tau.bar.sqrtn(res$tau.bar.sqrtn[1,], res$tau.bar.sqrtn[2,], solve(res$Sigma.inv))
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[1,])
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[2,])
+hist.Tn(res$Tn)
+
+est.ML  <- function(x) ML.uniform(x, a = a) 
+test <- function(x)  uniform.test.ML(x, a = a)
+validation2(est.ML, test)
+res <- validation3(test, nb.sim = 1000, n = 1000)
+plot.ellipse.tau.bar.sqrtn(res$tau.bar.sqrtn[1,], res$tau.bar.sqrtn[2,], solve(res$Sigma.inv))
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[1,])
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[2,])
+hist.Tn(res$Tn)
+
+est.ML  <- function(x) ML.uniform(x, b = b) 
+test <- function(x)  uniform.test.ML(x, b = b)
+validation2(est.ML, test)
+res <- validation3(test, nb.sim = 1000, n = 1000)
+plot.ellipse.tau.bar.sqrtn(res$tau.bar.sqrtn[1,], res$tau.bar.sqrtn[2,], solve(res$Sigma.inv))
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[1,])
+hist.tau.bar.sqrtn(res$tau.bar.sqrtn[2,])
+hist.Tn(res$Tn)
 
 aaa
 
 ## Validation 
 
-adaptIntegrate(f = dens, lower = left.bound, upper = right.bound, tol = 1e-9)$integral 
-x = gen(1000000)
-x = gen(10000)
-x = qf(runif(10000))
-round(mle(x), 4); theta
-#round(mle(x), 4); delta
-round(mm(x), 4); theta ## if mm
-cdf(quant)
-adaptIntegrate(f = dens, lower = left.bound, upper = quant, tol = 1e-9)$integral 
-mean(x < quant)
-qf(cdf(quant)); quant
-hist(gen(10000), freq = FALSE)
-curve(dens(x), add = TRUE, col = "grey0", n = 1000, lw = 2)
-
-
-n <- 10000 # approaches n = infinity
-n <- 1000 
-n <- 100 
-Tn <- tau.bar.sqrtn <- NULL
-nb.sim <- 5000
-for (i in 1:nb.sim){
-  print(i)
-  x <- gen(n) 
-  res <- test(x)
-  Tn <- c(Tn, res$Tn)
-  tau.bar.sqrtn <- cbind(tau.bar.sqrtn, res$tau.bar.sqrtn)
+validation1 <- function(){
+  n <- 1e6
+  ui <- seq(0 + 1 / n / 2, 1 -  1 / n / 2, length = n)
+  xi <- qf(ui) # generates perfectly G distributed sample
+  hist(xi, prob = TRUE, breaks = 50)
+  curve(dens(x), add = TRUE, col = "blue", n = 1000, lw = 2)
 }
-dim(tau.bar.sqrtn)
-length(Tn)
+validation2 <- function(est, test){  
+  x <- gen(1000000)
+  val <- matrix(c(
+    adaptIntegrate(f = dens, lower = left.bound, upper = right.bound, tol = 1e-9)$integral, 1, 
+    qf(cdf(quant)), quant, # validation of qf and cdf
+    round(cdf(quant), 6), round(adaptIntegrate(f = dens, lower = left.bound, upper = quant, tol = 1e-9)$integral, 6),
+    round(cdf(quant), 6), round(mean(x < quant), 6),
+    rbind(round(est(x), 6), theta),
+    rbind(round(test(x)[[1]], 6), theta)
+  ), byrow = T, ncol = 2)  
+  rownames(val) <- c("density integrates to 1", "CDF and inv-CDF", "CDF", "gen", rep("estimation", nrow(val) - 4))
+  return(val)
+}
+validation3 <- function(test, nb.sim = 5000, n = 1000){
+  Tn <- tau.bar.sqrtn <- NULL
+  for (i in 1:nb.sim){
+    print(i)
+    x <- gen(n) 
+    res <- test(x)
+    Tn <- c(Tn, res$Tn)
+    tau.bar.sqrtn <- cbind(tau.bar.sqrtn, res$tau.bar.sqrtn)
+  }
+  val <- matrix(c(
+    rbind(round(apply(tau.bar.sqrtn, 1, mean), 4), c(0, 0)),
+    round(rbind(var(t(tau.bar.sqrtn)),  solve(test(x)$Sigma.inv)), 4),
+    round(rbind(solve(var(t(tau.bar.sqrtn))),  test(x)$Sigma.inv), 4)
+  ), byrow = T, ncol = 4)  
+  rownames(val) <- c("mean : sqrt(n) Cn and sqrt(n) Sn", "Sigma[1,]", "Sigma[2,]", 
+                     "Sigma.inv[1,]", "Sigma.inv[2,]")
+  print(val)
+  return(list(Tn = Tn, tau.bar.sqrtn = tau.bar.sqrtn, Sigma.inv = res$Sigma.inv))
+}  
+plot.ellipse.tau.bar.sqrtn <- function(tau.bar.sqrtn1, tau.bar.sqrtn2, Sigma){
+  plot(tau.bar.sqrtn1, tau.bar.sqrtn2)  
+  lines(ellipse(Sigma), col = 'red', lwd = 2)
+}  
+hist.tau.bar.sqrtn <- function(tau.bar.sqrtn){
+  hist(tau.bar.sqrtn, freq = F)
+  curve(dnorm(x, mean = mean(tau.bar.sqrtn), sd = sd(tau.bar.sqrtn)), add = TRUE, col = "grey0", n = 1000, lw = 2)
+  p.value <- normal.test.ML(tau.bar.sqrtn)$p.value
+  names(p.value) = "normality test p.value"
+  return(p.value)
+}
+hist.Tn <- function(Tn){
+  hist(Tn, prob = TRUE)
+  curve(dchisq(x, df = 2), add = TRUE, col = "grey0", n = 1000, lw = 2)
+  p.value <- chisquared.test.ML(Tn, k = 2)$p.value
+  names(p.value) = "ch-square test p.value"
+  return(p.value)
+}  
 
-## Validation of Theorem 1 : asymptotic distribution of tau.bar and Tn
-round(apply(tau.bar.sqrtn, 1, mean), 4) # s/b close to 0 0
-
-round(var(t(tau.bar.sqrtn)), 4) # s/b close to Sigma
-Sigma <- solve(test(x)$Sigma.inv); Sigma
-
-round(solve(var(t(tau.bar.sqrtn))), 4) # s/b close to Sigma.inv
-Sigmainv <- test(x)$Sigma.inv; Sigmainv
-
-plot(tau.bar.sqrtn[1,], tau.bar.sqrtn[2,])
-lines(ellipse(Sigma), col = 'red', lwd = 2)
-
-hist(tau.bar.sqrtn[1,], freq = F)
-curve(dnorm(x, mean = mean(tau.bar.sqrtn[1,]), sd = sd(tau.bar.sqrtn[1,])), add = TRUE, col = "grey0", n = 1000, lw = 2)
-
-normal.test.ML(tau.bar.sqrtn[1,])$p.value
-
-hist(tau.bar.sqrtn[2,], freq = F)
-curve(dnorm(x, mean = mean(tau.bar.sqrtn[2,]), sd = sd(tau.bar.sqrtn[2,])), add = TRUE, col = "grey0", n = 1000, lw = 2)
-normal.test.ML(tau.bar.sqrtn[2,])$p.value
-
-hist(Tn, freq = F)
-curve(dchisq(x, df = 2), add = TRUE, col = "grey0", n = 1000, lw = 1)
-chisquared.test.ML(Tn, k = 2)$p.value
+RENDU ICI
 
 #Validation of the chi-square distribution
 
@@ -1383,13 +1416,14 @@ graph_hist <- function(x, dens, est){
 }
 
 graph.ellipse <- function(Sigma.inv, x, y, title = "95% Confidence Ellipse"){
+  par(cex.axis = 1.6, cex.lab = 1.5, cex.main = 1.6)
   Sigma <- solve(Sigma.inv)
   ell <- ellipse(Sigma, level = 0.95)
   xlimm <- c(min(c(ell[,1], x)), max(c(ell[,1], x)))
   ylimm <- c(min(c(ell[,2], y)), max(c(ell[,2], y)))
-  par(mgp = c(2.2, .7, 0))  # Valeurs par défaut sont c(3, 1, 0)
+  par(mgp = c(2.1, .7, 0))  # Valeurs par défaut sont c(3, 1, 0)
   plot(ell, xlim = xlimm, ylim = ylimm, main = title,
-       col = 'black', lwd = 2, type = 'l', cex.lab = 1.3, cex.axis = 1.3,
+       col = 'black', lwd = 2, type = 'l',
        xlab = expression(sqrt(n) * " " * C[n](hat(bold(theta))[n])),
        ylab = expression(sqrt(n) * " " * S[n](hat(bold(theta))[n])))
   points(x, y, pch = 16)
@@ -1432,7 +1466,7 @@ curve(dens.eval, add = TRUE, col = "black", n = 1000, lty = 4, lwd = 2)
 
 legend('topright', legend = c("Laplace","EPD","Student","logistic","normal", "exp-Weibull", "Gumbel"), 
        bg = 'white', ncol = 1, col = c("grey60","grey60", "black","black",  "black","grey60", "black"), 
-       lty = c(4, 1, 1, 2, 3, 2, 4), cex = .9, lwd = rep(3, 7))
+       lty = c(4, 1, 1, 2, 3, 2, 4), cex = .9, lwd = rep(3, 7), seg.len = 4)
 
 #dev.off()
 
